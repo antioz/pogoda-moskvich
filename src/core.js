@@ -33,19 +33,7 @@ function guideText(weatherLine) {
     "• в группу — добавь меня обычным участником;",
     "• в канал — добавь админом с правом публикации.",
     "",
-    `сегодня вот: ${weatherLine}`,
-  ].join("\n");
-}
-
-// Короткое приветствие — для группы/канала.
-function groupGreetText(weatherLine) {
-  return [
-    "блиииин, это погода для москвичей.",
-    "",
-    "каждое утро буду присылать сюда дерьмовую погоду( в 07:00, если проснусь.",
-    "выкинуть — просто удали меня из чата.",
-    "",
-    `погода сейчас - *${weatherLine}*`,
+    `сегодня вот: *${weatherLine}*`,
   ].join("\n");
 }
 
@@ -79,10 +67,8 @@ async function processUpdates(token, state, { timeout = 0 } = {}) {
       const { chat, new_chat_member } = u.my_chat_member;
       const id = String(chat.id);
       if (ACTIVE.has(new_chat_member.status)) {
-        if (!state.chats[id]) {
-          added++;
-          toGuide.add(id);
-        }
+        // Группы/каналы регистрируем молча — приветствие при добавлении не шлём.
+        if (!state.chats[id]) added++;
         state.chats[id] = { title: chatTitle(chat), type: chat.type, addedAt: new Date().toISOString() };
       } else if (GONE.has(new_chat_member.status)) {
         if (state.chats[id]) {
@@ -108,8 +94,7 @@ async function processUpdates(token, state, { timeout = 0 } = {}) {
       const weather = await getMoscowWeather();
       for (const id of toGuide) {
         const line = generateMessage(weather);
-        const isPrivate = state.chats[id]?.type === "private";
-        const text = isPrivate ? guideText(line) : groupGreetText(line);
+        const text = guideText(line); // toGuide наполняется только из /start в личке
         try {
           await sendToChannel(token, id, text, { parseMode: "Markdown" });
         } catch (e) {
