@@ -41,13 +41,46 @@ function chatTitle(chat) {
   );
 }
 
+// Полное руководство — для лички. weatherLine — погода прям сейчас.
+function guideText(weatherLine) {
+  return [
+    "блиииин привет, я Погода для москвичей.",
+    "",
+    "раз в день, утром, кидаю погоду по Москве по-человечески — без градусников и давлений, а как есть:",
+    "«блиииин жарко жесть +30», «блиин опять дождь +14», «блиииин похоолодало +6».",
+    "",
+    "как пользоваться:",
+    "• тут в личке — ты уже подписан, утром прилетит первый пост (~07:00 по Москве);",
+    "• хочешь погоду в свой чат — добавь меня в группу обычным участником;",
+    "• хочешь в канал — добавь админом с правом публикации.",
+    "куда добавишь, туда и буду слать сам. без настроек.",
+    "",
+    "выкинуть просто — удали из чата, отвалюсь молча.",
+    "",
+    "а вот погода прям сейчас:",
+    weatherLine,
+  ].join("\n");
+}
+
+// Короткое приветствие — для группы/канала.
+function groupGreetText(weatherLine) {
+  return [
+    "блиииин привет, я Погода для москвичей.",
+    "буду раз в день, утром (~07:00 по Москве), кидать сюда погоду по Москве по-человечески.",
+    "выкинуть — просто удалите меня из чата.",
+    "",
+    "а вот погода прям сейчас:",
+    weatherLine,
+  ].join("\n");
+}
+
 async function main() {
   if (!TOKEN) throw new Error("Нужна переменная окружения BOT_TOKEN");
 
   const state = await loadState();
   const updates = await getUpdates(state.offset);
 
-  const newlyAdded = []; // chat_id, которым шлём приветствие
+  const toGuide = new Set(); // chat_id, которым показать руководство
   let added = 0;
   let removed = 0;
 
@@ -61,7 +94,7 @@ async function main() {
       if (ACTIVE.has(new_chat_member.status)) {
         if (!state.chats[id]) {
           added++;
-          newlyAdded.push(id);
+          toGuide.add(id); // новому чату — приветствие с гайдом
         }
         state.chats[id] = { title: chatTitle(chat), type: chat.type, addedAt: new Date().toISOString() };
       } else if (GONE.has(new_chat_member.status)) {
@@ -72,27 +105,27 @@ async function main() {
       }
     }
 
-    // Подписка в личке через /start.
+    // Команды в личке: /start подписывает, /start и /help всегда показывают гайд.
     const msg = u.message;
-    if (msg?.text?.startsWith("/start") && msg.chat.type === "private") {
+    if (msg?.chat?.type === "private" && /^\/(start|help)\b/.test(msg.text || "")) {
       const id = String(msg.chat.id);
-      if (!state.chats[id]) {
-        added++;
-        newlyAdded.push(id);
-      }
+      if (msg.text.startsWith("/start") && !state.chats[id]) added++;
       state.chats[id] = { title: chatTitle(msg.chat), type: msg.chat.type, addedAt: new Date().toISOString() };
+      toGuide.add(id); // на любую команду отвечаем руководством
     }
   }
 
-  // Приветствие новичкам — один запрос погоды на всех.
-  if (newlyAdded.length) {
+  // Руководство — один запрос погоды на всех, текст по типу чата.
+  if (toGuide.size) {
     const weather = await getMoscowWeather();
-    for (const id of newlyAdded) {
-      const text = `блиииин привет, я Погода для москвичей. буду раз в день кидать сюда погоду по Москве. а вот прям щас:\n\n${generateMessage(weather)}`;
+    for (const id of toGuide) {
+      const line = generateMessage(weather);
+      const isPrivate = state.chats[id]?.type === "private";
+      const text = isPrivate ? guideText(line) : groupGreetText(line);
       try {
         await sendToChannel(TOKEN, id, text);
       } catch (e) {
-        console.error(`приветствие ${id} не ушло: ${e.message}`);
+        console.error(`гайд ${id} не ушёл: ${e.message}`);
       }
     }
   }
