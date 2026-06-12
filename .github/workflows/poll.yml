@@ -1,12 +1,11 @@
-name: Ежедневный прогноз
+name: Слушатель новых чатов
 
 on:
   schedule:
-    # 04:00 UTC = 07:00 по Москве. cron всегда в UTC.
-    - cron: "0 4 * * *"
-  workflow_dispatch: # кнопка ручного запуска во вкладке Actions
+    - cron: "*/5 * * * *" # каждые ~5 минут (GitHub может задерживать)
+  workflow_dispatch:
 
-# Сериализуем со слушателем: оба пишут data/state.json.
+# Сериализуем с ежедневной рассылкой: оба пишут data/state.json.
 concurrency:
   group: bot-state
   cancel-in-progress: false
@@ -15,21 +14,21 @@ permissions:
   contents: write
 
 jobs:
-  post:
+  poll:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Разослать прогноз
+      - name: Опросить Telegram
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        run: node bot.js
+        run: node src/poll.js
       - name: Сохранить состояние
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/state.json
-          git diff --staged --quiet || git commit -m "state: рассылка, чистка чатов [skip ci]"
+          git diff --staged --quiet || git commit -m "state: обновление списка чатов [skip ci]"
           git push
