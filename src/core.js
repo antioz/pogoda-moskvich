@@ -103,17 +103,23 @@ async function processUpdates(token, state, { timeout = 0 } = {}) {
     }
   }
 
+  // Гайды отправляем «по возможности»: если погода/отправка отвалились — чат уже
+  // зарегистрирован и offset продвинут, поэтому не роняем всю пачку апдейтов.
   if (toGuide.size) {
-    const weather = await getMoscowWeather();
-    for (const id of toGuide) {
-      const line = generateMessage(weather);
-      const isPrivate = state.chats[id]?.type === "private";
-      const text = isPrivate ? guideText(line) : groupGreetText(line);
-      try {
-        await sendToChannel(token, id, text, { parseMode: "Markdown" });
-      } catch (e) {
-        console.error(`гайд ${id} не ушёл: ${e.message}`);
+    try {
+      const weather = await getMoscowWeather();
+      for (const id of toGuide) {
+        const line = generateMessage(weather);
+        const isPrivate = state.chats[id]?.type === "private";
+        const text = isPrivate ? guideText(line) : groupGreetText(line);
+        try {
+          await sendToChannel(token, id, text, { parseMode: "Markdown" });
+        } catch (e) {
+          console.error(`гайд ${id} не ушёл: ${e.message}`);
+        }
       }
+    } catch (e) {
+      console.error(`гайды пропущены (погода недоступна): ${e.message}`);
     }
   }
 

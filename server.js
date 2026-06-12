@@ -5,6 +5,7 @@
 
 import { loadState, saveState } from "./src/store.js";
 import { processUpdates, broadcast } from "./src/core.js";
+import { tgCall } from "./src/tg.js";
 
 const TOKEN = process.env.BOT_TOKEN;
 if (!TOKEN) {
@@ -68,9 +69,21 @@ function scheduleDaily() {
   }, ms);
 }
 
+// Прогрев: закрепить живой IP заранее (короткий таймаут), чтобы первый long-poll
+// не висел на задушенном DNS-адресе. На обычной сети сработает мгновенно.
+async function warmup() {
+  try {
+    const r = await tgCall(TOKEN, "getMe", {}, { timeoutMs: 8000 });
+    if (r?.ok) console.log(`прогрев: бот @${r.result.username} доступен`);
+  } catch (e) {
+    console.error(`прогрев не удался (продолжаем): ${e.message}`);
+  }
+}
+
 async function main() {
   state = await loadState();
   console.log(`старт. чатов: ${Object.keys(state.chats).length}, offset=${state.offset}`);
+  await warmup();
   scheduleDaily();
   await pollLoop();
 }
