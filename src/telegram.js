@@ -5,11 +5,14 @@
  * @param {string} chatId  @username канала или числовой chat_id
  * @param {string} text    текст поста
  */
-async function sendToChannel(token, chatId, text) {
+async function sendToChannel(token, chatId, text, opts = {}) {
+  const payload = { chat_id: chatId, text };
+  if (opts.parseMode) payload.parse_mode = opts.parseMode;
+
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(payload),
   });
 
   const data = await res.json();
