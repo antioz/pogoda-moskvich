@@ -1,0 +1,14 @@
+{
+  "name": "pogoda-moskvich",
+  "version": "1.0.0",
+  "description": "Telegram-бот «Погода для москвичей» — раз в день постит прогноз в настроенческом стиле",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node bot.js",
+    "dry": "node bot.js --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

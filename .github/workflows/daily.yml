@@ -1,0 +1,21 @@
+name: Ежедневный прогноз
+
+on:
+  schedule:
+    # 04:00 UTC = 07:00 по Москве. cron всегда в UTC.
+    - cron: "0 4 * * *"
+  workflow_dispatch: # кнопка ручного запуска во вкладке Actions
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Отправить прогноз
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: node bot.js
