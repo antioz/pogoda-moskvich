@@ -3,7 +3,7 @@
 // процессом на VPS (server.js).
 
 import { getMoscowWeather } from "./weather.js";
-import { generateMessage } from "./phrases.js";
+import { generateMessage, categoryKey } from "./phrases.js";
 import { sendToChannel } from "./telegram.js";
 import { tgCall } from "./tg.js";
 
@@ -134,7 +134,12 @@ async function processUpdates(token, state, { timeout = 0 } = {}) {
 async function broadcast(token, state, { dryRun = false } = {}) {
   const weather = await getMoscowWeather();
   const ids = Object.keys(state.chats);
-  const sample = generateMessage(weather);
+
+  // Эскалация «опять»: сколько дней подряд та же категория погоды.
+  const cat = categoryKey(weather);
+  const streak = state.lastCategory === cat ? (state.streak || 0) + 1 : 1;
+  const level = streak - 1; // день 1 → L0
+  const sample = generateMessage(weather, { level });
 
   if (dryRun) return { ok: 0, dropped: 0, total: ids.length, sample };
 
@@ -142,7 +147,7 @@ async function broadcast(token, state, { dryRun = false } = {}) {
   let dropped = 0;
   for (const id of ids) {
     try {
-      await sendToChannel(token, id, generateMessage(weather));
+      await sendToChannel(token, id, generateMessage(weather, { level }));
       ok++;
     } catch (e) {
       if (DEAD.test(e.message)) {
@@ -157,6 +162,8 @@ async function broadcast(token, state, { dryRun = false } = {}) {
   }
 
   state.lastRun = new Date().toISOString();
+  state.lastCategory = cat;
+  state.streak = streak;
   return { ok, dropped, total: ids.length, sample };
 }
 
