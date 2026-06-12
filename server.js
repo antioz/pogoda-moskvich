@@ -50,6 +50,14 @@ function msUntilNext0400UTC() {
   return next - now;
 }
 
+// Последние ПРОШЕДШИЕ 04:00 UTC — слот, за который рассылка уже должна была уйти.
+function lastDue0400UTC() {
+  const now = new Date();
+  const slot = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 4, 0, 0, 0));
+  if (slot > now) slot.setUTCDate(slot.getUTCDate() - 1);
+  return slot;
+}
+
 async function runDaily() {
   try {
     const r = await broadcast(TOKEN, state);
@@ -84,6 +92,17 @@ async function main() {
   state = await loadState();
   console.log(`старт. чатов: ${Object.keys(state.chats).length}, offset=${state.offset}`);
   await warmup();
+
+  // Догон: если контейнер лежал в момент 07:00 и поднялся позже — рассылка за
+  // этот слот пропущена. Сравниваем lastRun с последним прошедшим слотом и шлём,
+  // если отстали. Защита от дубля — сам lastRun (после рассылки он обновится).
+  const due = lastDue0400UTC();
+  const last = state.lastRun ? new Date(state.lastRun) : new Date(0);
+  if (last < due) {
+    console.log(`[daily] догон: рассылка за ${due.toISOString()} пропущена, шлю сейчас`);
+    await runDaily();
+  }
+
   scheduleDaily();
   await pollLoop();
 }
