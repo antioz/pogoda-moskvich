@@ -84,10 +84,19 @@ const EVAL = [
 
 // --- Слот «доп со связкой» ---
 const LINKS = ["да ещё и", "ещё блин", "вдобавок", "и сверху", "плюс", "а тут ещё"];
-const EXTRA_EVENTS = [
-  "ветрище", "ветер с ног валит", "слякоть", "грязища", "сырость",
-  "лужи везде", "гроза эта", "ледяной дождь", "гололёд",
+// Доп-события при любой температуре.
+const EXTRA_ANY = [
+  "ветрище", "ветер с ног валит", "грязища", "сырость",
+  "лужи везде", "гроза эта",
 ];
+// Доп-события только когда холодно (вода замерзает на поверхности):
+// ледяной дождь, гололёд, слякоть бессмысленны в жару.
+const EXTRA_COLD = ["ледяной дождь", "гололёд", "слякоть"];
+const COLD_MAX = 3; // tempMax ≤ → можно цеплять «холодные» события
+
+function extraEvents(tempMax) {
+  return (tempMax ?? 0) <= COLD_MAX ? [...EXTRA_ANY, ...EXTRA_COLD] : EXTRA_ANY;
+}
 
 function grumble(level) {
   if (level >= 3 && maybe(0.05)) return pick(GRUMBLE_HARD);
@@ -129,7 +138,7 @@ function generateMessage(w, { level = 0 } = {}) {
   if ((w.wind ?? 0) >= 40 && maybe(0.6)) {
     parts.push(`${pick(LINKS)} ${pick(["ветрище", "ветер с ног валит"])}`);
   } else if (maybe(lvl >= 3 ? 0.25 : 0.1)) {
-    parts.push(`${pick(LINKS)} ${pick(EXTRA_EVENTS)}`);
+    parts.push(`${pick(LINKS)} ${pick(extraEvents(w.tempMax))}`);
   }
 
   let s = parts.join(" ");
