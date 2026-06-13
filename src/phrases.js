@@ -84,18 +84,25 @@ const EVAL = [
 
 // --- Слот «доп со связкой» ---
 const LINKS = ["да ещё и", "ещё блин", "вдобавок", "и сверху", "плюс", "а тут ещё"];
-// Доп-события при любой температуре.
-const EXTRA_ANY = [
-  "ветрище", "ветер с ног валит", "грязища", "сырость",
-  "лужи везде", "гроза эта",
-];
-// Доп-события только когда холодно (вода замерзает на поверхности):
-// ледяной дождь, гололёд, слякоть бессмысленны в жару.
-const EXTRA_COLD = ["ледяной дождь", "гололёд", "слякоть"];
-const COLD_MAX = 3; // tempMax ≤ → можно цеплять «холодные» события
 
-function extraEvents(tempMax) {
-  return (tempMax ?? 0) <= COLD_MAX ? [...EXTRA_ANY, ...EXTRA_COLD] : EXTRA_ANY;
+// Каждое доп-событие подключается только если реальные показатели погоды
+// его допускают. Предикат читает w (tempMax, tempMin, code, precip, wind, cloud).
+// Никакого «при любой температуре» — лужи нужен дождь, гололёд нужен лёд и т.д.
+const EXTRA_EVENTS = [
+  { text: "ветрище",            when: (w) => (w.wind ?? 0) >= 25 },
+  { text: "ветер с ног валит",  when: (w) => (w.wind ?? 0) >= 35 },
+  { text: "гроза эта",          when: (w) => w.code === 95 || HAIL.has(w.code) },
+  { text: "лужи везде",         when: (w) => RAIN.has(w.code) && (w.tempMax ?? 0) > 1 },
+  { text: "сырость",            when: (w) => RAIN.has(w.code) || FOG.has(w.code) || (w.cloud ?? 0) >= 85 },
+  { text: "грязища",            when: (w) => (RAIN.has(w.code) || SNOW.has(w.code)) && (w.tempMax ?? 0) > 0 },
+  { text: "слякоть",            when: (w) => SNOW.has(w.code) && (w.tempMax ?? 0) >= 0 && (w.tempMax ?? 0) <= 4 },
+  { text: "ледяной дождь",      when: (w) => FREEZING.has(w.code) },
+  { text: "гололёд",            when: (w) => FREEZING.has(w.code) || ((w.tempMin ?? 99) <= 0 && (RAIN.has(w.code) || (w.precip ?? 0) > 0)) },
+];
+
+// Список доп-событий, реально допустимых при текущей погоде.
+function extraEvents(w) {
+  return EXTRA_EVENTS.filter((e) => e.when(w)).map((e) => e.text);
 }
 
 function grumble(level) {
@@ -134,11 +141,16 @@ function generateMessage(w, { level = 0 } = {}) {
   // оценка
   if (maybe(0.7)) parts.push(pick(EVAL));
 
-  // доп: ветер сильный → чаще про ветер; иначе изредка случайное событие
-  if ((w.wind ?? 0) >= 40 && maybe(0.6)) {
-    parts.push(`${pick(LINKS)} ${pick(["ветрище", "ветер с ног валит"])}`);
-  } else if (maybe(lvl >= 3 ? 0.25 : 0.1)) {
-    parts.push(`${pick(LINKS)} ${pick(extraEvents(w.tempMax))}`);
+  // доп: только событие, реально допустимое при сегодняшней погоде.
+  // При сильном ветре (≥40) — почти всегда про ветер; иначе изредка любое из подходящих.
+  const extras = extraEvents(w);
+  if (extras.length) {
+    const stormWind = (w.wind ?? 0) >= 40;
+    if ((stormWind && maybe(0.6)) || maybe(lvl >= 3 ? 0.25 : 0.1)) {
+      const windEvents = extras.filter((e) => e.startsWith("ветер") || e === "ветрище");
+      const choice = stormWind && windEvents.length ? pick(windEvents) : pick(extras);
+      parts.push(`${pick(LINKS)} ${choice}`);
+    }
   }
 
   let s = parts.join(" ");
