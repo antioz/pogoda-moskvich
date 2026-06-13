@@ -88,13 +88,19 @@ const LINKS = ["да ещё и", "ещё блин", "вдобавок", "и св
 // Каждое доп-событие подключается только если реальные показатели погоды
 // его допускают. Предикат читает w (tempMax, tempMin, code, precip, wind, cloud).
 // Никакого «при любой температуре» — лужи нужен дождь, гололёд нужен лёд и т.д.
+const HEAT_MIN = 25;          // tempMax ≥ → «жара»: дождь даёт духоту и пыль, а не лужи
 const EXTRA_EVENTS = [
   { text: "ветрище",            when: (w) => (w.wind ?? 0) >= 25 },
   { text: "ветер с ног валит",  when: (w) => (w.wind ?? 0) >= 35 },
   { text: "гроза эта",          when: (w) => w.code === 95 || HAIL.has(w.code) },
-  { text: "лужи везде",         when: (w) => RAIN.has(w.code) && (w.tempMax ?? 0) > 1 },
-  { text: "сырость",            when: (w) => RAIN.has(w.code) || FOG.has(w.code) || (w.cloud ?? 0) >= 85 },
-  { text: "грязища",            when: (w) => (RAIN.has(w.code) || SNOW.has(w.code)) && (w.tempMax ?? 0) > 0 },
+  // Жара: дождь = духота, сухой зной = пыль. Никаких луж/сырости/грязи.
+  { text: "духота",             when: (w) => (w.tempMax ?? 0) >= HEAT_MIN && (RAIN.has(w.code) || (w.cloud ?? 0) >= 70) },
+  { text: "пылища",             when: (w) => (w.tempMax ?? 0) >= HEAT_MIN },
+  // Прохладный/умеренный дождь — тогда лужи и сырость.
+  { text: "лужи везде",         when: (w) => RAIN.has(w.code) && (w.tempMax ?? 0) > 1 && (w.tempMax ?? 0) < HEAT_MIN },
+  { text: "сырость",            when: (w) => (w.tempMax ?? 99) < HEAT_MIN && (RAIN.has(w.code) || FOG.has(w.code) || (w.cloud ?? 0) >= 85) },
+  // Грязь — только когда льёт бóльшую часть дня (precip ≥ «весь день»-порога).
+  { text: "грязища",            when: (w) => (RAIN.has(w.code) || SNOW.has(w.code)) && (w.precip ?? 0) >= ALLDAY_MM && (w.tempMax ?? 0) > 0 && (w.tempMax ?? 0) < HEAT_MIN },
   { text: "слякоть",            when: (w) => SNOW.has(w.code) && (w.tempMax ?? 0) >= 0 && (w.tempMax ?? 0) <= 4 },
   { text: "ледяной дождь",      when: (w) => FREEZING.has(w.code) },
   { text: "гололёд",            when: (w) => FREEZING.has(w.code) || ((w.tempMin ?? 99) <= 0 && (RAIN.has(w.code) || (w.precip ?? 0) > 0)) },
